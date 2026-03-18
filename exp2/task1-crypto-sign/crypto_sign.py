@@ -1,33 +1,61 @@
 from cryptography.hazmat.primitives.asymmetric import ec, utils
 from cryptography.hazmat.primitives import hashes
+from cryptography.exceptions import InvalidSignature
 import hashlib
 import json
 
 # ===== 任务1：对交易数据签名（补全）=====
 def sign_transaction(tx_dict, private_key):
-    # TODO 补全下方代码：
-    # 提示：① 将交易字典转为字符串(应用JSON序列化) ② 计算SHA256哈希 ③ 用私钥签名
-    # tx_string = ...
-    # tx_hash = ...
-    # signature = ...
-    # return signature
-    pass
+    """
+    对交易字典进行ECDSA签名
+    :param tx_dict: 待签名的交易字典
+    :param private_key: 椭圆曲线私钥对象
+    :return: 字节类型的签名数据
+    """
+    # 1. 将交易字典转为有序字符串（保证序列化结果唯一）
+    # sort_keys=True 确保字典键值对顺序固定，避免相同内容不同顺序导致哈希不一致
+    tx_string = json.dumps(tx_dict, sort_keys=True).encode('utf-8')
+    
+    # 2. 计算交易数据的SHA256哈希
+    tx_hash = hashlib.sha256(tx_string).digest()
+    
+    # 3. 用私钥进行ECDSA签名（使用SHA256哈希算法）
+    # signature_algorithm=ec.ECDSA(hashes.SHA256()) 指定签名算法
+    signature = private_key.sign(
+        tx_hash,
+        ec.ECDSA(hashes.SHA256())
+    )
+    
+    return signature
 
 # ===== 任务2：验证签名 + 篡改检测（补全）=====
 def verify_signature(tx_dict, signature, public_key):
-    # TODO：用公钥验证签名是否匹配原始交易
-    # 提示: try..except..结构; verify函数
-    pass
-
-if __name__ == "__main__":
-    # ===== 金融场景 =====
-    # 用户A向用户B转账100元，生成交易数据
-    tx_data = {
-        "from": "Alice_pubkey_0x123",
-        "to": "Bob_pubkey_0x456", 
-        "amount": 100,
-        "timestamp": "2026-03-13T10:00:00"
-    }
+    """
+    验证交易签名的有效性，检测数据是否被篡改
+    :param tx_dict: 待验证的交易字典
+    :param signature: 签名字节数据
+    :param public_key: 椭圆曲线公钥对象
+    :return: bool - 验证通过返回True，否则返回False
+    """
+    try:
+        # 1. 对交易数据做和签名时相同的哈希处理
+        tx_string = json.dumps(tx_dict, sort_keys=True).encode('utf-8')
+        tx_hash = hashlib.sha256(tx_string).digest()
+        
+        # 2. 用公钥验证签名
+        public_key.verify(
+            signature,
+            tx_hash,
+            ec.ECDSA(hashes.SHA256())
+        )
+        return True
+    except InvalidSignature:
+        # 签名不匹配（数据被篡改或签名错误）
+        return False
+    except Exception as e:
+        # 其他异常（如数据格式错误）
+        print(f"验证过程出错: {e}")
+        return False
 
     # ===== 生成密钥对（已提供）=====
     private_key = ec.generate_private_key(ec.SECP256K1())
